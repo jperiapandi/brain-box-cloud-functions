@@ -74,14 +74,14 @@ const reqBodySchema = Joi.object({
   questions: Joi.array().required().min(1),
 });
 
-export const evaluatequiz = onRequest(async (req, res) => {
+export const evaluatequiz = onRequest({ cors: true }, async (req, res) => {
   if (req.method != "POST") {
     res.sendStatus(400);
   }
   const submittedQuiz = req.body as SubmittedQuiz;
   const { error: validationErr } = reqBodySchema.validate(submittedQuiz);
   if (validationErr) {
-    error(error);
+    error(validationErr);
     res.statusCode = 400;
     res.json({ error: validationErr.message });
   } else {
