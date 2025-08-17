@@ -19,6 +19,7 @@ export type AnswerDoc = {
 
 export type EvaluateQuizResponse = {
   quizId: string;
+  quizTitle: string;
   scoreSum: number;
   participant: {
     uid: string;

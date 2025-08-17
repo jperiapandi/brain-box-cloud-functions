@@ -108,6 +108,8 @@ export const evaluatequiz = onRequest({ cors: true }, async (req, res) => {
         );
       }
 
+      const quizTitle = questionOptionsSnapshot.get("title");
+
       const questionOptions = questionOptionsSnapshot.get(
         "questions"
       ) as QuestionOption[];
@@ -195,6 +197,7 @@ export const evaluatequiz = onRequest({ cors: true }, async (req, res) => {
 
       const evaluatedQuizResp: EvaluateQuizResponse = {
         quizId: submittedQuiz.quizId,
+        quizTitle,
         scoreSum,
         participant: submittedQuiz.participant,
         questionsEvaluated,
