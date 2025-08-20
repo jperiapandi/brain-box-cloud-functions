@@ -78,6 +78,10 @@ export const evaluatequiz = onRequest({ cors: true }, async (req, res) => {
   if (req.method != "POST") {
     res.sendStatus(400);
   }
+
+  const isPostman = req.headers["user-agent"]?.includes("PostmanRuntime");
+  const recordParticipation = isPostman == false;
+
   const submittedQuiz = req.body as SubmittedQuiz;
   const { error: validationErr } = reqBodySchema.validate(submittedQuiz);
   if (validationErr) {
@@ -132,8 +136,14 @@ export const evaluatequiz = onRequest({ cors: true }, async (req, res) => {
           );
           //
           let userAttempted = false;
-          let n = 0; // Number of required answers
-          let s = 0; // Number of submitted answers
+          // Number of required correct-answers
+          let nRequiredCorrectAns = 0;
+          // Number of wrong-answers defined in a question.
+          let nAllowedWrongAns = 0;
+          // Number of submitted correct-answers
+          let nSelectedCorrectAns = 0;
+          // Number of submitted wrong-answers
+          let nSelectedWrongAns = 0;
           let score = 0;
 
           const evaluatedOptions: EvaluatedOption[] =
@@ -151,11 +161,17 @@ export const evaluatequiz = onRequest({ cors: true }, async (req, res) => {
               }
 
               if (isThisPartOfCorrectAnswers) {
-                n++;
+                nRequiredCorrectAns++;
+              } else {
+                nAllowedWrongAns++;
               }
 
               if (isThisPartOfCorrectAnswers && isThisPartOfUserSelection) {
-                s++;
+                nSelectedCorrectAns++;
+              }
+
+              if (!isThisPartOfCorrectAnswers && isThisPartOfUserSelection) {
+                nSelectedWrongAns++;
               }
 
               return {
@@ -165,23 +181,20 @@ export const evaluatequiz = onRequest({ cors: true }, async (req, res) => {
               };
             });
 
-          if (s == 0) {
-            // Incorrect.
-            score = 0;
-          } else if (s === n) {
-            // Correct.
-            scoreSum++;
-            score = 1;
-          } else if (s < n) {
-            // Partial correct
-            scoreSum += s / n;
-            score = s / n;
-            console.log();
-          }
+          const x = nSelectedCorrectAns / nRequiredCorrectAns;
+          const y = nSelectedWrongAns / nAllowedWrongAns;
+
+          score = x - y;
+          scoreSum += score;
 
           debug(
-            `Question: ${questionOption.questionText} 
-            n:${n}  s:${s}  Score:${score}  ScoreSum:${scoreSum}`
+            `Qn: ${questionOption.questionText} Type:${questionOption.type} 
+            nRequiredCorrectAns:${nRequiredCorrectAns}  
+            nAllowedWrongAns:${nAllowedWrongAns} 
+            nSelectedCorrectAns:${nSelectedCorrectAns}  
+            nSelectedWrongAns:${nSelectedWrongAns} 
+            scoreForCorrect:${x} scoreForWrong:${y} 
+            Score:${score}  ScoreSum:${scoreSum}`
           );
 
           return {
@@ -195,47 +208,54 @@ export const evaluatequiz = onRequest({ cors: true }, async (req, res) => {
         }
       );
 
+      // Round off the scoreSum to 2 digits
+      scoreSum = parseFloat(scoreSum.toFixed(2));
+
       const evaluatedQuizResp: EvaluateQuizResponse = {
         quizId: submittedQuiz.quizId,
         quizTitle,
         scoreSum,
         participant: submittedQuiz.participant,
         questionsEvaluated,
+        recordParticipation,
       };
-      // Write a record in participation
-      const participationDocRef = getFirestore()
-        .collection(COLXN_PARTICIPATION)
-        .doc();
 
-      await participationDocRef.set({
-        ...evaluatedQuizResp,
-        participatedAt: FieldValue.serverTimestamp(),
-      });
+      if (recordParticipation) {
+        // Write a record in participation
+        const participationDocRef = getFirestore()
+          .collection(COLXN_PARTICIPATION)
+          .doc();
 
-      debug(
-        `New Participation Document is created ${participationDocRef.path}`
-      );
+        await participationDocRef.set({
+          ...evaluatedQuizResp,
+          participatedAt: FieldValue.serverTimestamp(),
+        });
 
-      // Write a Participant doc in the Quiz
-      const participantDocRef = getFirestore()
-        .collection(COLXN_QUIZZES)
-        .doc(submittedQuiz.quizId)
-        .collection(COLXN_PARTICIPANT)
-        .doc();
-      await participantDocRef.set({
-        uid: submittedQuiz.participant.uid,
-        displayName: submittedQuiz.participant.displayName,
-        score: scoreSum,
-        participatedAt: FieldValue.serverTimestamp(),
-      });
+        debug(
+          `New Participation Document is created ${participationDocRef.path}`
+        );
 
-      debug(`New Participant Document is created ${participantDocRef.path}`);
-      //
-      // Increase the participant count
-      await getFirestore()
-        .collection(COLXN_QUIZZES)
-        .doc(submittedQuiz.quizId)
-        .update({ participantsCount: FieldValue.increment(1) });
+        // Write a Participant doc in the Quiz
+        const participantDocRef = getFirestore()
+          .collection(COLXN_QUIZZES)
+          .doc(submittedQuiz.quizId)
+          .collection(COLXN_PARTICIPANT)
+          .doc();
+        await participantDocRef.set({
+          uid: submittedQuiz.participant.uid,
+          displayName: submittedQuiz.participant.displayName,
+          score: scoreSum,
+          participatedAt: FieldValue.serverTimestamp(),
+        });
+
+        debug(`New Participant Document is created ${participantDocRef.path}`);
+        //
+        // Increase the participant count
+        await getFirestore()
+          .collection(COLXN_QUIZZES)
+          .doc(submittedQuiz.quizId)
+          .update({ participantsCount: FieldValue.increment(1) });
+      }
       //
       // Send Response to client
       res.json(evaluatedQuizResp);

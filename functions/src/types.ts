@@ -26,6 +26,7 @@ export type EvaluateQuizResponse = {
     displayName: string;
   };
   questionsEvaluated: QuestionEvaluated[];
+  recordParticipation?: boolean;
 };
 
 export type QuestionOption = {
