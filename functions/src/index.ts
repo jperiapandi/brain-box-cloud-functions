@@ -70,6 +70,7 @@ const reqBodySchema = Joi.object({
     .keys({
       uid: Joi.string().required().not(""),
       displayName: Joi.string().required().not(""),
+      isAnonymous: Joi.boolean().required(),
     }),
   questions: Joi.array().required().min(1),
 });
@@ -244,6 +245,7 @@ export const evaluatequiz = onRequest({ cors: true }, async (req, res) => {
         await participantDocRef.set({
           uid: submittedQuiz.participant.uid,
           displayName: submittedQuiz.participant.displayName,
+          isAnonymous: submittedQuiz.participant.isAnonymous,
           score: scoreSum,
           participatedAt: FieldValue.serverTimestamp(),
         });

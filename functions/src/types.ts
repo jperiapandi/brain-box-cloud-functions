@@ -8,6 +8,7 @@ export type SubmittedQuiz = {
   participant: {
     uid: string;
     displayName: string;
+    isAnonymous: boolean;
   };
   questions: SubmittedQuestion[];
 };
